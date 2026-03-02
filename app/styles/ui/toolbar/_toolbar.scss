@@ -3,7 +3,10 @@
 /** A React component holding the main application toolbar component. */
 #desktop-app-toolbar {
   height: var(--toolbar-height);
-  border-bottom: 1px solid var(--toolbar-border-color);
+  border: 1px solid var(--toolbar-border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
 
   display: flex;
   flex-direction: row;
@@ -25,6 +28,7 @@
     display: flex;
     flex-direction: row;
     flex-shrink: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
 
     & > :last-child {
       // Redundant when `.resizable` is used, remove when

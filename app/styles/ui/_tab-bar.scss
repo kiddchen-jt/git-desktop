@@ -3,6 +3,11 @@
   flex-direction: row;
   height: var(--tab-bar-height);
 
+  &.tabs {
+    gap: var(--spacing-third);
+    padding: var(--spacing-third);
+  }
+
   &.vertical {
     flex-direction: column;
     align-items: stretch;
@@ -31,7 +36,7 @@
   }
 
   &.tabs &-item {
-    border-radius: 0;
+    border-radius: 8px;
 
     // Give each item equal space
     flex: 1;
@@ -41,14 +46,13 @@
     align-items: center;
     justify-content: center;
 
-    border-bottom: 1px solid var(--box-border-color);
-    border-right: 1px solid var(--box-border-color);
+    border: 1px solid var(--box-border-color);
 
     // This makes it so that we never render a double-width item border.
     // It has the unintended consequence of making it impossible to have a tab
     // bar with just one item but we can live with that.
     &:last-child {
-      border-right: none;
+      border-right: 1px solid var(--box-border-color);
     }
 
     // We intentionally swap foreground and background here to create
@@ -56,7 +60,9 @@
     // in so far that it doesn't have an active selection state, just a selected
     // one.
     &.selected {
-      box-shadow: inset 0 -3px 0px var(--tab-bar-active-color);
+      background: rgba(30, 126, 247, 0.2);
+      border-color: var(--tab-bar-active-color);
+      box-shadow: inset 0 0 0 1px rgba(82, 168, 255, 0.32);
     }
 
     &:hover {

@@ -10,7 +10,8 @@
 .diff-code-mirror .CodeMirror {
   height: 100%;
   color: var(--diff-text-color);
-  background: var(--background-color);
+  background: #0e1b2f;
+  border-top: 1px solid rgba(72, 102, 141, 0.35);
   font-size: var(--font-size-sm);
   font-family: var(--font-family-monospace);
 
@@ -54,6 +55,11 @@
   .CodeMirror-code {
     // Add a border to the end of the diff
     border-bottom: var(--base-border);
+    background: linear-gradient(
+      180deg,
+      rgba(16, 30, 50, 0.96) 0%,
+      rgba(11, 22, 38, 0.96) 100%
+    );
   }
 
   .CodeMirror-gutters {
@@ -113,7 +119,7 @@
 .CodeMirror-lines .diff-line-gutter {
   display: flex;
   height: 100%;
-  background: var(--diff-gutter-background-color);
+  background: #13243d;
   box-sizing: border-box;
   position: relative;
   cursor: default;
@@ -247,11 +253,11 @@
   }
 
   .before {
-    border-right: 1px solid var(--diff-border-color);
+    border-right: 1px solid rgba(88, 121, 163, 0.4);
   }
 
   .after {
-    border-right: 4px solid var(--diff-border-color);
+    border-right: 4px solid rgba(88, 121, 163, 0.4);
   }
 
   .diff-line-number {

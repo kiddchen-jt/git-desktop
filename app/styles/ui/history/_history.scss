@@ -6,6 +6,11 @@
   flex-direction: column;
   flex: 1;
   max-height: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(18, 30, 49, 0.9) 0%,
+    rgba(12, 22, 38, 0.9) 100%
+  );
 
   // Necessary so that the diff doesn't expand
   // beyond the width of the history
@@ -27,9 +32,10 @@
   }
 
   .compare-form {
-    background: var(--box-alt-background-color);
+    background: rgba(24, 40, 64, 0.92);
     flex: initial;
-    padding: var(--spacing-half);
+    padding: var(--spacing-half) var(--spacing-half) var(--spacing-half)
+      var(--spacing);
     border-bottom: var(--base-border);
   }
 
@@ -41,7 +47,7 @@
   }
 
   .merge-status {
-    background: var(--background-color);
+    background: rgba(14, 26, 43, 0.95);
     border-width: 0 var(--spacing-half);
     border: solid transparent;
     box-sizing: content-box;
@@ -107,7 +113,7 @@
   }
 
   .tab-bar {
-    padding: var(--spacing-half);
+    padding: var(--spacing-half) var(--spacing);
     border-bottom: var(--base-border);
     height: initial;
 

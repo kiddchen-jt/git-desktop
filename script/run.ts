@@ -41,5 +41,14 @@ export function run(spawnOptions: SpawnOptions) {
     NODE_ENV: 'development',
   })
 
-  return spawn(binaryPath, [], opts)
+  const extraArgsRaw = opts.env?.['DESKTOP_EXTRA_ARGS']
+  const extraArgs =
+    typeof extraArgsRaw === 'string'
+      ? extraArgsRaw
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+      : []
+
+  return spawn(binaryPath, extraArgs, opts)
 }

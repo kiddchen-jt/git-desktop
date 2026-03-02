@@ -102,8 +102,12 @@
   flex-direction: row;
   align-items: center;
 
-  background-color: var(--background-color);
+  background-color: rgba(13, 25, 42, 0.95);
   border-bottom: var(--base-border);
+  border-left: 2px solid transparent;
+  transition:
+    background-color 120ms ease,
+    border-left-color 120ms ease;
 
   // We need to give a bit more padding to the right to make place for the scrollbar
   padding-right: calc(var(--spacing) + var(--spacing-half));
@@ -125,6 +129,7 @@
 
     .summary {
       font-weight: var(--font-weight-semibold);
+      letter-spacing: 0.1px;
 
       &.empty-summary {
         color: var(--text-secondary-color);
@@ -186,6 +191,15 @@
   .tool-tip-contents {
     display: none;
   }
+}
+
+#commit-list .list-item:hover .commit {
+  background-color: rgba(25, 42, 66, 0.92);
+  border-left-color: rgba(98, 175, 255, 0.55);
+}
+
+#commit-list .list-item.selected .commit {
+  border-left-color: rgba(152, 212, 255, 0.75);
 }
 
 .commit-list-item-tooltip {

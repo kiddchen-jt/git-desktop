@@ -10,11 +10,16 @@
   flex: 1;
   flex-direction: column;
   min-height: 100px;
+  background: linear-gradient(
+    180deg,
+    rgba(18, 30, 49, 0.9) 0%,
+    rgba(12, 22, 38, 0.9) 100%
+  );
 
   .header {
-    background: var(--box-alt-background-color);
+    background: rgba(23, 39, 63, 0.9);
     border-bottom: 1px solid var(--box-border-color);
-    padding: 0 var(--spacing);
+    padding: 0 var(--spacing-half) 0 var(--spacing);
     height: 29px;
     flex: 0 0 auto;
   }
@@ -172,6 +177,10 @@
     // This is important when app is zoomed in. Otherwise, the filter list
     // will be overlapped by the commit message form.
     min-height: 0;
+
+    .list-item {
+      border-left-width: 3px;
+    }
   }
 }
 
@@ -203,7 +212,7 @@
 
   &:hover,
   &:focus {
-    background-color: var(--box-selected-background-color);
+    background-color: var(--box-hover-background-color);
   }
 
   &.selected,

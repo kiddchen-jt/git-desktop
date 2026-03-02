@@ -169,8 +169,21 @@ export class AppWindow {
     })
 
     this.window.webContents.once('did-finish-load', () => {
-      if (process.env.NODE_ENV === 'development') {
+      const skipOpenDevTools =
+        process.env.SKIP_OPEN_DEVTOOLS === '1' ||
+        process.env.SKIP_OPEN_DEVTOOLS?.toLowerCase() === 'true'
+      const forceShowWindowOnLoad =
+        process.env.FORCE_SHOW_WINDOW_ON_LOAD === '1' ||
+        process.env.FORCE_SHOW_WINDOW_ON_LOAD?.toLowerCase() === 'true'
+
+      if (process.env.NODE_ENV === 'development' && !skipOpenDevTools) {
         this.window.webContents.openDevTools()
+      }
+
+      // In some WSL environments, the renderer-ready IPC doesn't reliably fire.
+      // Allow forcing the BrowserWindow to be shown after the document loads.
+      if (forceShowWindowOnLoad) {
+        this.show()
       }
 
       this._loadTime = now() - startLoad
@@ -178,13 +191,43 @@ export class AppWindow {
       this.maybeEmitDidLoad()
     })
 
+    this.window.webContents.on(
+      'console-message',
+      (_event, level, message, line, sourceId) => {
+        // Surface renderer logs in terminal to debug blank-screen startup issues.
+        console.log(
+          `[renderer:${level}] ${message} (${sourceId ?? 'unknown'}:${line})`
+        )
+      }
+    )
+
     this.window.webContents.on('did-finish-load', () => {
       this.window.webContents.setVisualZoomLevelLimits(1, 1)
     })
 
-    this.window.webContents.on('did-fail-load', () => {
-      this.window.webContents.openDevTools()
-      this.window.show()
+    this.window.webContents.on(
+      'did-fail-load',
+      (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+        console.error(
+          `[did-fail-load] code=${errorCode} desc=${errorDescription} url=${validatedURL} mainFrame=${isMainFrame}`
+        )
+        this.window.webContents.openDevTools()
+        this.window.show()
+      }
+    )
+
+    this.window.webContents.on('render-process-gone', (_event, details) => {
+      console.error(
+        `[render-process-gone] reason=${details.reason} exitCode=${details.exitCode}`
+      )
+    })
+
+    this.window.webContents.on('unresponsive', () => {
+      console.error('[window] renderer became unresponsive')
+    })
+
+    this.window.webContents.on('responsive', () => {
+      console.log('[window] renderer responsive again')
     })
 
     // TODO: This should be scoped by the window.

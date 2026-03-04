@@ -62,6 +62,7 @@ const TestMenuEvents = [
   'test-do-you-want-fork-this-repository',
   'test-files-too-large',
   'test-generic-git-authentication',
+  'test-graph-demo',
   'test-icons',
   'test-invalidated-account-token',
   'test-merge-successful-banner',

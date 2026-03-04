@@ -123,6 +123,9 @@ const sendErrorWithContext = (
   const error = withSourceMappedStack(e)
 
   console.error('Uncaught exception', error)
+  if (__DEV__) {
+    console.error(`Uncaught exception details: ${describeUnknownError(error)}`)
+  }
 
   if (__DEV__ || process.env.TEST_ENV) {
     console.error(
@@ -214,6 +217,42 @@ const onUncaughtException = (error: unknown) => {
   // unsubscribe manually once we encounter an error we actually want to crash
   // the app for.
   process.off('uncaughtException', onUncaughtException)
+}
+
+function describeUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? error.message
+  }
+
+  if (error === null) {
+    return 'null'
+  }
+
+  if (error === undefined) {
+    return 'undefined'
+  }
+
+  if (typeof error !== 'object') {
+    return String(error)
+  }
+
+  const typedError = error as Record<string, unknown>
+  const ownNames = Object.getOwnPropertyNames(typedError)
+  const details: Record<string, unknown> = {}
+
+  for (const key of ownNames) {
+    try {
+      details[key] = typedError[key]
+    } catch (e) {
+      details[key] = `[unreadable:${String(e)}]`
+    }
+  }
+
+  try {
+    return JSON.stringify(details)
+  } catch (e) {
+    return `non-serializable error object: ${String(e)}`
+  }
 }
 
 process.on('uncaughtException', onUncaughtException)

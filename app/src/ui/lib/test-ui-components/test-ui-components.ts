@@ -62,6 +62,8 @@ export function showTestUI(
         onSubmit: (login: string, token: string) => {},
         onDismiss: () => {},
       })
+    case 'test-graph-demo':
+      return dispatcher.showPopup({ type: PopupType.GraphDemo })
     case 'test-icons':
       return showIconTestDialog()
     case 'test-invalidated-account-token':

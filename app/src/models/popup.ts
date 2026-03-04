@@ -99,6 +99,7 @@ export enum PopupType {
   PullRequestComment = 'PullRequestComment',
   UnknownAuthors = 'UnknownAuthors',
   TestIcons = 'TestIcons',
+  GraphDemo = 'GraphDemo',
   ConfirmCommitFilteredChanges = 'ConfirmCommitFilteredChanges',
   TestAbout = 'TestAbout',
   PushProtectionError = 'PushProtectionError',
@@ -435,6 +436,9 @@ export type PopupDetail =
     }
   | {
       type: PopupType.TestIcons
+    }
+  | {
+      type: PopupType.GraphDemo
     }
   | {
       type: PopupType.ConfirmCommitFilteredChanges

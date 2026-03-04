@@ -134,6 +134,10 @@ export function buildTestMenu() {
           click: emit('test-app-error'),
         },
         {
+          label: 'Commit graph demo',
+          click: emit('test-graph-demo'),
+        },
+        {
           label: 'Octicons',
           click: emit('test-icons'),
         },

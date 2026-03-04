@@ -184,6 +184,7 @@ import { webUtils } from 'electron'
 import { showTestUI } from './lib/test-ui-components/test-ui-components'
 import { ConfirmCommitFilteredChanges } from './changes/confirm-commit-filtered-changes-dialog'
 import { AboutTestDialog } from './about/about-test-dialog'
+import { GraphDemo } from '../graph/GraphDemo'
 import {
   ISecretScanResult,
   PushProtectionErrorDialog,
@@ -2528,6 +2529,10 @@ export class App extends React.Component<IAppProps, IAppState> {
             onShowAcknowledgements={this.showAcknowledgements}
             onShowTermsAndConditions={this.showTermsAndConditions}
           />
+        )
+      case PopupType.GraphDemo:
+        return (
+          <GraphDemo key="graph-demo" onDismissed={onPopupDismissedFn} />
         )
       case PopupType.PushProtectionError:
         return (

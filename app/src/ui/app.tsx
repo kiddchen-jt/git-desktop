@@ -2530,10 +2530,19 @@ export class App extends React.Component<IAppProps, IAppState> {
             onShowTermsAndConditions={this.showTermsAndConditions}
           />
         )
-      case PopupType.GraphDemo:
+      case PopupType.GraphDemo: {
+        const selectedRepository =
+          this.state.selectedState?.type === SelectionType.Repository
+            ? this.state.selectedState.repository
+            : null
         return (
-          <GraphDemo key="graph-demo" onDismissed={onPopupDismissedFn} />
+          <GraphDemo
+            key="graph-demo"
+            onDismissed={onPopupDismissedFn}
+            repository={selectedRepository}
+          />
         )
+      }
       case PopupType.PushProtectionError:
         return (
           <PushProtectionErrorDialog

@@ -29,6 +29,19 @@
   color: var(--text-secondary-color);
 }
 
+.graph-demo-live-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.graph-demo-live-repo {
+  font-size: 12px;
+  color: var(--text-secondary-color);
+  overflow-wrap: anywhere;
+}
+
 .graph-demo-canvas-wrap {
   position: relative;
   flex: 1;
@@ -153,4 +166,14 @@
   color: var(--text-secondary-color);
   margin: 2px 0;
   overflow-wrap: anywhere;
+}
+
+.graph-demo-error-block {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 80px;
+  margin-top: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
 }

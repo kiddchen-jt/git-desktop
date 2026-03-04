@@ -1,26 +1,44 @@
 import * as React from 'react'
+import { Repository } from '../models/repository'
 import { Dialog, DialogContent, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/lib/button'
-import { buildGraphLayout } from './graph-layout'
 import { GRAPH_PADDING, GraphCanvas } from './GraphCanvas'
+import { buildGraphLayout } from './graph-layout'
+import { getGraphInputForRepository } from './live/getGraphInputForRepository'
 import { makeLargeMockGraphInput, makeSmallMockGraphInput } from './mock/makeMockGraphInput'
-import { GraphLayout } from './types'
+import { GraphInput, GraphLayout } from './types'
 
-type DatasetKind = 'small' | 'large'
+type GraphSourceKind = 'mock-small' | 'mock-large' | 'live'
 
 interface IGraphDemoProps {
   readonly onDismissed: () => void
+  readonly repository: Repository | null
 }
 
+const EmptyInput: GraphInput = {
+  commits: [],
+  refs: [],
+  head: { type: 'detached', detachedTarget: '' },
+}
+
+const DefaultRowHeight = 28
+const DefaultLaneWidth = 22
+
 export function GraphDemo(props: IGraphDemoProps) {
-  const [dataset, setDataset] = React.useState<DatasetKind>('small')
+  const [source, setSource] = React.useState<GraphSourceKind>('mock-small')
   const [selectedCommitId, setSelectedCommitId] = React.useState<string | null>(null)
   const [largeSeed, setLargeSeed] = React.useState(0)
+  const [liveLimit, setLiveLimit] = React.useState(500)
+  const [reloadToken, setReloadToken] = React.useState(0)
   const [layout, setLayout] = React.useState<GraphLayout>(() =>
-    buildGraphLayout(makeSmallMockGraphInput(), { rowHeight: 28, laneWidth: 22 })
+    buildGraphLayout(makeSmallMockGraphInput(), {
+      rowHeight: DefaultRowHeight,
+      laneWidth: DefaultLaneWidth,
+    })
   )
   const [datasetError, setDatasetError] = React.useState<string | null>(null)
   const [isLoadingDataset, setIsLoadingDataset] = React.useState(false)
+  const [liveInfoMessage, setLiveInfoMessage] = React.useState<string | null>(null)
 
   const selectedNode = React.useMemo(() => {
     return layout.nodes.find(node => node.id === selectedCommitId) ?? null
@@ -34,48 +52,96 @@ export function GraphDemo(props: IGraphDemoProps) {
     setSelectedCommitId(layout.nodes[0]?.id ?? null)
   }, [layout.nodes])
 
-  const loadDataset = React.useCallback((kind: DatasetKind, seed: number) => {
-    try {
-      const nextInput =
-        kind === 'small' ? makeSmallMockGraphInput() : makeLargeMockGraphInput(2000, seed)
-      const nextLayout = buildGraphLayout(nextInput, { rowHeight: 28, laneWidth: 22 })
+  React.useEffect(() => {
+    let cancelled = false
 
-      setLayout(nextLayout)
-      setDataset(kind)
-      setDatasetError(null)
-    } catch (error) {
-      const message = error instanceof Error ? error.stack ?? error.message : String(error)
-      setDatasetError(message)
-      console.error('[graph-demo] failed to load dataset', error)
-    } finally {
-      setIsLoadingDataset(false)
-    }
-  }, [])
-
-  const queueLoadDataset = React.useCallback(
-    (kind: DatasetKind, seed: number) => {
+    const load = async () => {
       setIsLoadingDataset(true)
-      // Move heavy mock generation/layout out of the click event turn.
-      window.setTimeout(() => loadDataset(kind, seed), 0)
-    },
-    [loadDataset]
-  )
+      setDatasetError(null)
+      setLiveInfoMessage(null)
 
-  const onSelectSmallDataset = React.useCallback(() => {
-    queueLoadDataset('small', largeSeed)
-  }, [largeSeed, queueLoadDataset])
+      try {
+        let nextInput: GraphInput
 
-  const onSelectLargeDataset = React.useCallback(() => {
-    queueLoadDataset('large', largeSeed)
-  }, [largeSeed, queueLoadDataset])
+        if (source === 'mock-small') {
+          nextInput = makeSmallMockGraphInput()
+        } else if (source === 'mock-large') {
+          // Keep heavy sync work off the click event turn.
+          await waitForNextTick()
+          nextInput = makeLargeMockGraphInput(2000, largeSeed)
+        } else if (props.repository === null) {
+          nextInput = EmptyInput
+          setLiveInfoMessage('No repository is currently selected.')
+        } else if (props.repository.missing) {
+          nextInput = EmptyInput
+          setLiveInfoMessage(`Repository is missing on disk: ${props.repository.path}`)
+        } else {
+          nextInput = await getGraphInputForRepository(props.repository, liveLimit)
+          if (nextInput.commits.length === 0) {
+            setLiveInfoMessage('Repository has no commits to display.')
+          }
+        }
+
+        const nextLayout = buildGraphLayout(nextInput, {
+          rowHeight: DefaultRowHeight,
+          laneWidth: DefaultLaneWidth,
+        })
+
+        if (!cancelled) {
+          setLayout(nextLayout)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.stack ?? error.message : String(error)
+          setDatasetError(message)
+          console.error('[graph-demo] failed to load dataset', error)
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingDataset(false)
+        }
+      }
+    }
+
+    void load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [liveLimit, largeSeed, props.repository, reloadToken, source])
 
   const onRebuildLargeMock = React.useCallback(() => {
-    setLargeSeed(seed => {
-      const nextSeed = seed + 1
-      queueLoadDataset('large', nextSeed)
-      return nextSeed
-    })
-  }, [queueLoadDataset])
+    setLargeSeed(seed => seed + 1)
+    setSource('mock-large')
+  }, [])
+
+  const onSelectMockSmall = React.useCallback(() => {
+    setSource('mock-small')
+  }, [])
+
+  const onSelectMockLarge = React.useCallback(() => {
+    setSource('mock-large')
+  }, [])
+
+  const onSelectLive = React.useCallback(() => {
+    setSource('live')
+  }, [])
+
+  const onReloadLive = React.useCallback(() => {
+    setReloadToken(token => token + 1)
+  }, [])
+
+  const onSetLiveLimit200 = React.useCallback(() => {
+    setLiveLimit(200)
+  }, [])
+
+  const onSetLiveLimit500 = React.useCallback(() => {
+    setLiveLimit(500)
+  }, [])
+
+  const onSetLiveLimit2000 = React.useCallback(() => {
+    setLiveLimit(2000)
+  }, [])
 
   return (
     <Dialog
@@ -86,32 +152,48 @@ export function GraphDemo(props: IGraphDemoProps) {
     >
       <DialogContent>
         <div className="graph-demo-controls">
-          <div className="graph-demo-dataset-toggle" role="group" aria-label="Dataset">
-            <Button
-              onClick={onSelectSmallDataset}
-              disabled={dataset === 'small' || isLoadingDataset}
-            >
-              Small dataset
+          <div className="graph-demo-dataset-toggle" role="group" aria-label="Data source">
+            <Button onClick={onSelectMockSmall} disabled={source === 'mock-small' || isLoadingDataset}>
+              Mock (Small)
             </Button>
-            <Button
-              onClick={onSelectLargeDataset}
-              disabled={dataset === 'large' || isLoadingDataset}
-            >
-              Large dataset (2000)
+            <Button onClick={onSelectMockLarge} disabled={source === 'mock-large' || isLoadingDataset}>
+              Mock (Large)
             </Button>
-            <Button
-              onClick={onRebuildLargeMock}
-              disabled={dataset !== 'large' || isLoadingDataset}
-            >
+            <Button onClick={onSelectLive} disabled={source === 'live' || isLoadingDataset}>
+              Live (Current Repository)
+            </Button>
+            <Button onClick={onRebuildLargeMock} disabled={source !== 'mock-large' || isLoadingDataset}>
               Rebuild large mock
+            </Button>
+            <Button onClick={onReloadLive} disabled={source !== 'live' || isLoadingDataset}>
+              Reload
             </Button>
           </div>
           <div className="graph-demo-meta">
-            rows: {layout.meta.rowCount.toLocaleString()} | rowHeight: {layout.meta.rowHeight} | graphColWidth:{' '}
+            source: {source} | rows: {layout.meta.rowCount.toLocaleString()} | rowHeight: {layout.meta.rowHeight} | graphColWidth:{' '}
             {graphColWidth} | edges: {layout.edges.length.toLocaleString()} | lanes: 0-{layout.meta.maxLane}
             {isLoadingDataset ? ' | loading dataset...' : ''}
           </div>
         </div>
+
+        {source === 'live' && (
+          <div className="graph-demo-live-controls">
+            <div className="graph-demo-live-repo">
+              repo: {props.repository?.name ?? 'N/A'} ({props.repository?.path ?? 'no repository selected'})
+            </div>
+            <div className="graph-demo-dataset-toggle" role="group" aria-label="Live commit limit">
+              <Button onClick={onSetLiveLimit200} disabled={isLoadingDataset || liveLimit === 200}>
+                200
+              </Button>
+              <Button onClick={onSetLiveLimit500} disabled={isLoadingDataset || liveLimit === 500}>
+                500
+              </Button>
+              <Button onClick={onSetLiveLimit2000} disabled={isLoadingDataset || liveLimit === 2000}>
+                2000
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="graph-demo-canvas-wrap">
           <GraphCanvas
@@ -121,11 +203,24 @@ export function GraphDemo(props: IGraphDemoProps) {
           />
         </div>
 
+        {liveInfoMessage !== null && (
+          <div className="graph-demo-detail-panel">
+            <div className="graph-demo-selection-line">{liveInfoMessage}</div>
+          </div>
+        )}
+
         {datasetError !== null && (
           <div className="graph-demo-detail-panel">
             <div className="graph-demo-selection-line">
-              <strong>dataset error:</strong> {datasetError}
+              <strong>Dataset Error</strong>
             </div>
+            <textarea
+              className="graph-demo-error-block"
+              value={datasetError}
+              readOnly={true}
+              rows={4}
+              aria-label="Dataset error"
+            />
           </div>
         )}
 
@@ -176,4 +271,10 @@ function formatFullDateTime(authorTime: number): string {
   }
 
   return date.toISOString()
+}
+
+function waitForNextTick(): Promise<void> {
+  return new Promise(resolve => {
+    window.setTimeout(resolve, 0)
+  })
 }

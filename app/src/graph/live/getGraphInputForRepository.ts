@@ -4,6 +4,8 @@ import { Repository } from '../../models/repository'
 import { getAllTags, getBranches, getCommits, getSymbolicRef } from '../../lib/git'
 import { GraphHeadInput, GraphInput } from '../types'
 
+export type LiveCommitRangeMode = 'head' | 'branches' | 'all'
+
 interface IDesktopGraphData {
   readonly commits: ReadonlyArray<Commit>
   readonly branches: ReadonlyArray<Branch>
@@ -14,7 +16,8 @@ interface IDesktopGraphData {
 export interface IGraphDataProvider {
   readonly getCommits: (
     repository: Repository,
-    limit: number
+    limit: number,
+    mode: LiveCommitRangeMode
   ) => Promise<ReadonlyArray<Commit>>
   readonly getBranches: (repository: Repository) => Promise<ReadonlyArray<Branch>>
   readonly getAllTags: (repository: Repository) => Promise<Map<string, string>>
@@ -25,7 +28,14 @@ export interface IGraphDataProvider {
 }
 
 const defaultDataProvider: IGraphDataProvider = {
-  getCommits: (repository, limit) => getCommits(repository, 'HEAD', limit),
+  getCommits: (repository, limit, mode) =>
+    getCommits(
+      repository,
+      mode === 'head' ? 'HEAD' : undefined,
+      limit,
+      undefined,
+      getCommitArgsForMode(mode)
+    ),
   getBranches,
   getAllTags,
   getSymbolicRef,
@@ -34,10 +44,11 @@ const defaultDataProvider: IGraphDataProvider = {
 export async function getGraphInputForRepository(
   repo: Repository,
   limit: number,
+  mode: LiveCommitRangeMode = 'head',
   provider: IGraphDataProvider = defaultDataProvider
 ): Promise<GraphInput> {
   const [commits, branches, tags, symbolicHeadRef] = await Promise.all([
-    provider.getCommits(repo, limit),
+    provider.getCommits(repo, limit, mode),
     provider.getBranches(repo),
     provider.getAllTags(repo),
     provider.getSymbolicRef(repo, 'HEAD'),
@@ -84,4 +95,16 @@ export function toGraphInput(data: IDesktopGraphData): GraphInput {
         }
 
   return { commits, refs, head }
+}
+
+function getCommitArgsForMode(mode: LiveCommitRangeMode): ReadonlyArray<string> {
+  const common = ['--topo-order', '--date-order']
+  switch (mode) {
+    case 'head':
+      return common
+    case 'branches':
+      return [...common, '--branches']
+    case 'all':
+      return [...common, '--all']
+  }
 }

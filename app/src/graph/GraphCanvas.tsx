@@ -6,11 +6,18 @@ interface IGraphCanvasProps {
   readonly layout: GraphLayout
   readonly selectedCommitId: string | null
   readonly onSelectCommit: (commitId: string) => void
+  readonly onViewportMetricsChanged?: (metrics: IGraphViewportMetrics) => void
 }
 
 interface IPoint {
   readonly x: number
   readonly y: number
+}
+
+export interface IGraphViewportMetrics {
+  readonly visibleLaneMin: number
+  readonly visibleLaneMax: number
+  readonly graphColWidth: number
 }
 
 let hasLoggedDrawError = false
@@ -22,16 +29,12 @@ export const GRAPH_PADDING = 24
 const VisibleRefsCount = 3
 
 export function GraphCanvas(props: IGraphCanvasProps) {
+  const onViewportMetricsChanged = props.onViewportMetricsChanged
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
 
   const [viewportSize, setViewportSize] = React.useState({ width: 1, height: 1 })
   const [scrollTop, setScrollTop] = React.useState(0)
-
-  const graphColWidth = React.useMemo(() => {
-    const preferred = (props.layout.meta.maxLane + 1) * props.layout.meta.laneWidth + GRAPH_PADDING
-    return Math.max(preferred, MinGraphColWidth)
-  }, [props.layout.meta.laneWidth, props.layout.meta.maxLane])
 
   const totalHeight = props.layout.meta.rowCount * props.layout.meta.rowHeight
 
@@ -110,6 +113,61 @@ export function GraphCanvas(props: IGraphCanvasProps) {
     [scrollTop]
   )
 
+  const visibleNodes = React.useMemo(() => {
+    const nodes: Array<IGraphLayoutNode> = []
+    for (let row = visibleRows.start; row <= visibleRows.end; row++) {
+      const node = nodesByRow[row]
+      if (node !== undefined) {
+        nodes.push(node)
+      }
+    }
+
+    return nodes
+  }, [nodesByRow, visibleRows.end, visibleRows.start])
+
+  const visibleLaneRange = React.useMemo(() => {
+    if (visibleNodes.length === 0) {
+      return { min: 0, max: 0 }
+    }
+
+    let min = visibleNodes[0].lane
+    let max = visibleNodes[0].lane
+
+    for (const node of visibleNodes) {
+      if (node.lane < min) {
+        min = node.lane
+      }
+      if (node.lane > max) {
+        max = node.lane
+      }
+    }
+
+    return { min, max }
+  }, [visibleNodes])
+
+  const graphColWidth = React.useMemo(() => {
+    const laneCount = visibleLaneRange.max - visibleLaneRange.min + 1
+    const preferred = laneCount * props.layout.meta.laneWidth + GRAPH_PADDING
+    return Math.max(preferred, MinGraphColWidth)
+  }, [
+    props.layout.meta.laneWidth,
+    visibleLaneRange.max,
+    visibleLaneRange.min,
+  ])
+
+  React.useEffect(() => {
+    onViewportMetricsChanged?.({
+      visibleLaneMin: visibleLaneRange.min,
+      visibleLaneMax: visibleLaneRange.max,
+      graphColWidth,
+    })
+  }, [
+    graphColWidth,
+    onViewportMetricsChanged,
+    visibleLaneRange.max,
+    visibleLaneRange.min,
+  ])
+
   React.useEffect(() => {
     const canvas = canvasRef.current
     if (canvas === null) {
@@ -143,6 +201,7 @@ export function GraphCanvas(props: IGraphCanvasProps) {
           drawEdge(
             context,
             edge,
+            visibleLaneRange.min,
             props.layout.meta.laneWidth,
             props.layout.meta.rowHeight,
             toScreen
@@ -160,6 +219,7 @@ export function GraphCanvas(props: IGraphCanvasProps) {
           context,
           node,
           node.id === props.selectedCommitId,
+          visibleLaneRange.min,
           props.layout.meta.laneWidth,
           props.layout.meta.rowHeight,
           toScreen
@@ -180,21 +240,10 @@ export function GraphCanvas(props: IGraphCanvasProps) {
     props.selectedCommitId,
     toScreen,
     viewportSize.height,
+    visibleLaneRange.min,
     visibleRows.end,
     visibleRows.start,
   ])
-
-  const visibleNodes = React.useMemo(() => {
-    const nodes: Array<IGraphLayoutNode> = []
-    for (let row = visibleRows.start; row <= visibleRows.end; row++) {
-      const node = nodesByRow[row]
-      if (node !== undefined) {
-        nodes.push(node)
-      }
-    }
-
-    return nodes
-  }, [nodesByRow, visibleRows.end, visibleRows.start])
 
   const onScroll = React.useCallback((event: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(event.currentTarget.scrollTop)
@@ -278,17 +327,35 @@ export function GraphCanvas(props: IGraphCanvasProps) {
 function drawEdge(
   context: CanvasRenderingContext2D,
   edge: IGraphLayoutEdge,
+  laneOffset: number,
   laneWidth: number,
   rowHeight: number,
   toScreen: (x: number, y: number) => IPoint
 ) {
-  const x0 = edge.fromLane * laneWidth + laneWidth / 2
+  if (
+    !isFiniteNumber(edge.fromLane) ||
+    !isFiniteNumber(edge.toLane) ||
+    !isFiniteNumber(edge.fromRow) ||
+    !isFiniteNumber(edge.toRow)
+  ) {
+    return
+  }
+
+  const x0 = (edge.fromLane - laneOffset) * laneWidth + laneWidth / 2
   const y0 = edge.fromRow * rowHeight + rowHeight / 2
-  const x1 = edge.toLane * laneWidth + laneWidth / 2
+  const x1 = (edge.toLane - laneOffset) * laneWidth + laneWidth / 2
   const y1 = edge.toRow * rowHeight + rowHeight / 2
 
   const from = toScreen(x0, y0)
   const to = toScreen(x1, y1)
+  if (
+    !isFiniteNumber(from.x) ||
+    !isFiniteNumber(from.y) ||
+    !isFiniteNumber(to.x) ||
+    !isFiniteNumber(to.y)
+  ) {
+    return
+  }
 
   context.beginPath()
   context.strokeStyle = laneColor(edge.fromLane)
@@ -320,11 +387,14 @@ function drawNode(
   context: CanvasRenderingContext2D,
   node: IGraphLayoutNode,
   isSelected: boolean,
+  laneOffset: number,
   laneWidth: number,
   rowHeight: number,
   toScreen: (x: number, y: number) => IPoint
 ) {
-  const point = toScreen(node.x + laneWidth / 2, node.y + rowHeight / 2)
+  const x = (node.lane - laneOffset) * laneWidth + laneWidth / 2
+  const y = node.row * rowHeight + rowHeight / 2
+  const point = toScreen(x, y)
   const color = laneColor(node.lane)
 
   context.beginPath()
@@ -353,4 +423,8 @@ function formatDateYYYYMMDD(authorTime: number): string {
   }
 
   return date.toISOString().slice(0, 10)
+}
+
+function isFiniteNumber(value: number): boolean {
+  return Number.isFinite(value)
 }

@@ -120,6 +120,10 @@ const sendErrorWithContext = (
   context: Record<string, string> = {},
   nonFatal?: boolean
 ) => {
+  if (__DEV__) {
+    console.error(`Uncaught raw exception details: ${describeUnknownError(e)}`)
+  }
+
   const error = withSourceMappedStack(e)
 
   console.error('Uncaught exception', error)
@@ -192,6 +196,15 @@ const resizeLoopCompletedMessage =
   'ResizeObserver loop completed with undelivered notifications.'
 
 const onUncaughtException = (error: unknown) => {
+  // In some environments (notably Electron/Chromium edge cases) the renderer
+  // can emit uncaughtException with a nullish payload. There's no actionable
+  // stack in that case, so crashing the app creates a bad dev experience
+  // without diagnostic value.
+  if (error === null || error === undefined) {
+    sendNonFatalException('nullishUncaughtException', withSourceMappedStack(error))
+    return
+  }
+
   // This is a known issue with the ResizeObserver API in Chromium 132 which is
   // fixed in 133 that we can safely ignore.
   // See: https://issues.chromium.org/issues/391393420

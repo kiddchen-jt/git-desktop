@@ -54,5 +54,6 @@ export type GraphLayout = {
     readonly laneWidth: number
     readonly maxLane: number
     readonly rowCount: number
+    readonly unresolvedEdges: number
   }
 }

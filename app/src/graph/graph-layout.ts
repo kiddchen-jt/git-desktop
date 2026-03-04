@@ -40,6 +40,9 @@ export function buildGraphLayout(
   const commitLane = new Map<string, number>()
   const commitRow = new Map<string, number>()
   const pendingEdges = new Map<string, Array<IPendingEdge>>()
+  const commitIdSet = new Set(input.commits.map(c => c.id))
+  const remainingCommitIds = new Set(input.commits.map(c => c.id))
+  let unresolvedEdges = 0
 
   const nodes: Array<GraphLayout['nodes'][number]> = []
   const edges: Array<IGraphLayoutEdge> = []
@@ -53,6 +56,13 @@ export function buildGraphLayout(
     fromLane: number,
     fromRow: number
   ) => {
+    // Parent is outside the loaded commit window (live list boundary).
+    // Drop edge deterministically to avoid unresolved coordinates.
+    if (!commitIdSet.has(to)) {
+      unresolvedEdges++
+      return
+    }
+
     const toLane = commitLane.get(to)
     const toRow = commitRow.get(to)
 
@@ -141,6 +151,22 @@ export function buildGraphLayout(
       refs: refsByCommit.get(commit.id) ?? [],
       isMerge: commit.parents.length > 1,
     })
+
+    remainingCommitIds.delete(commit.id)
+
+    // Release lane expectations that cannot ever be fulfilled by remaining rows.
+    for (const laneState of lanes) {
+      if (
+        laneState.expected !== undefined &&
+        !remainingCommitIds.has(laneState.expected)
+      ) {
+        laneState.expected = undefined
+      }
+    }
+  }
+
+  for (const pending of pendingEdges.values()) {
+    unresolvedEdges += pending.length
   }
 
   let maxLane = 0
@@ -158,6 +184,7 @@ export function buildGraphLayout(
       laneWidth,
       maxLane,
       rowCount: input.commits.length,
+      unresolvedEdges,
     },
   }
 }

@@ -2,13 +2,13 @@ import * as React from 'react'
 import { Repository } from '../models/repository'
 import { Dialog, DialogContent, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/lib/button'
-import { GRAPH_PADDING, GraphCanvas } from './GraphCanvas'
+import { GraphCanvas, IGraphViewportMetrics } from './GraphCanvas'
 import { buildGraphLayout } from './graph-layout'
-import { getGraphInputForRepository } from './live/getGraphInputForRepository'
 import { makeLargeMockGraphInput, makeSmallMockGraphInput } from './mock/makeMockGraphInput'
 import { GraphInput, GraphLayout } from './types'
 
 type GraphSourceKind = 'mock-small' | 'mock-large' | 'live'
+type LiveRangeMode = 'head' | 'branches' | 'all'
 
 interface IGraphDemoProps {
   readonly onDismissed: () => void
@@ -23,12 +23,18 @@ const EmptyInput: GraphInput = {
 
 const DefaultRowHeight = 28
 const DefaultLaneWidth = 22
+const DefaultViewportMetrics: IGraphViewportMetrics = {
+  visibleLaneMin: 0,
+  visibleLaneMax: 0,
+  graphColWidth: 120,
+}
 
 export function GraphDemo(props: IGraphDemoProps) {
   const [source, setSource] = React.useState<GraphSourceKind>('mock-small')
   const [selectedCommitId, setSelectedCommitId] = React.useState<string | null>(null)
   const [largeSeed, setLargeSeed] = React.useState(0)
   const [liveLimit, setLiveLimit] = React.useState(500)
+  const [liveRangeMode, setLiveRangeMode] = React.useState<LiveRangeMode>('head')
   const [reloadToken, setReloadToken] = React.useState(0)
   const [layout, setLayout] = React.useState<GraphLayout>(() =>
     buildGraphLayout(makeSmallMockGraphInput(), {
@@ -39,14 +45,13 @@ export function GraphDemo(props: IGraphDemoProps) {
   const [datasetError, setDatasetError] = React.useState<string | null>(null)
   const [isLoadingDataset, setIsLoadingDataset] = React.useState(false)
   const [liveInfoMessage, setLiveInfoMessage] = React.useState<string | null>(null)
+  const [viewportMetrics, setViewportMetrics] = React.useState<IGraphViewportMetrics>(
+    DefaultViewportMetrics
+  )
 
   const selectedNode = React.useMemo(() => {
     return layout.nodes.find(node => node.id === selectedCommitId) ?? null
   }, [layout.nodes, selectedCommitId])
-
-  const graphColWidth = React.useMemo(() => {
-    return Math.max((layout.meta.maxLane + 1) * layout.meta.laneWidth + GRAPH_PADDING, 120)
-  }, [layout.meta.laneWidth, layout.meta.maxLane])
 
   React.useEffect(() => {
     setSelectedCommitId(layout.nodes[0]?.id ?? null)
@@ -76,7 +81,14 @@ export function GraphDemo(props: IGraphDemoProps) {
           nextInput = EmptyInput
           setLiveInfoMessage(`Repository is missing on disk: ${props.repository.path}`)
         } else {
-          nextInput = await getGraphInputForRepository(props.repository, liveLimit)
+          const { getGraphInputForRepository } = await import(
+            './live/getGraphInputForRepository'
+          )
+          nextInput = await getGraphInputForRepository(
+            props.repository,
+            liveLimit,
+            liveRangeMode
+          )
           if (nextInput.commits.length === 0) {
             setLiveInfoMessage('Repository has no commits to display.')
           }
@@ -108,7 +120,7 @@ export function GraphDemo(props: IGraphDemoProps) {
     return () => {
       cancelled = true
     }
-  }, [liveLimit, largeSeed, props.repository, reloadToken, source])
+  }, [liveLimit, liveRangeMode, largeSeed, props.repository, reloadToken, source])
 
   const onRebuildLargeMock = React.useCallback(() => {
     setLargeSeed(seed => seed + 1)
@@ -143,6 +155,18 @@ export function GraphDemo(props: IGraphDemoProps) {
     setLiveLimit(2000)
   }, [])
 
+  const onSetLiveRangeHead = React.useCallback(() => {
+    setLiveRangeMode('head')
+  }, [])
+
+  const onSetLiveRangeBranches = React.useCallback(() => {
+    setLiveRangeMode('branches')
+  }, [])
+
+  const onSetLiveRangeAll = React.useCallback(() => {
+    setLiveRangeMode('all')
+  }, [])
+
   return (
     <Dialog
       id="graph-demo"
@@ -170,8 +194,12 @@ export function GraphDemo(props: IGraphDemoProps) {
             </Button>
           </div>
           <div className="graph-demo-meta">
-            source: {source} | rows: {layout.meta.rowCount.toLocaleString()} | rowHeight: {layout.meta.rowHeight} | graphColWidth:{' '}
-            {graphColWidth} | edges: {layout.edges.length.toLocaleString()} | lanes: 0-{layout.meta.maxLane}
+            source: {source} | commits: {layout.nodes.length.toLocaleString()} | edges:{' '}
+            {layout.edges.length.toLocaleString()} | unresolvedEdges:{' '}
+            {layout.meta.unresolvedEdges.toLocaleString()} | rowHeight: {layout.meta.rowHeight} | graphColWidth:{' '}
+            {viewportMetrics.graphColWidth} | maxLane: {layout.meta.maxLane} | visibleLanes:{' '}
+            {viewportMetrics.visibleLaneMin}..{viewportMetrics.visibleLaneMax}
+            {source === 'live' ? ` | liveRange: ${liveRangeMode}` : ''}
             {isLoadingDataset ? ' | loading dataset...' : ''}
           </div>
         </div>
@@ -192,6 +220,26 @@ export function GraphDemo(props: IGraphDemoProps) {
                 2000
               </Button>
             </div>
+            <div className="graph-demo-dataset-toggle" role="group" aria-label="Live commit range mode">
+              <Button
+                onClick={onSetLiveRangeHead}
+                disabled={isLoadingDataset || liveRangeMode === 'head'}
+              >
+                HEAD only
+              </Button>
+              <Button
+                onClick={onSetLiveRangeBranches}
+                disabled={isLoadingDataset || liveRangeMode === 'branches'}
+              >
+                Local branches
+              </Button>
+              <Button
+                onClick={onSetLiveRangeAll}
+                disabled={isLoadingDataset || liveRangeMode === 'all'}
+              >
+                All refs
+              </Button>
+            </div>
           </div>
         )}
 
@@ -200,6 +248,7 @@ export function GraphDemo(props: IGraphDemoProps) {
             layout={layout}
             selectedCommitId={selectedCommitId}
             onSelectCommit={setSelectedCommitId}
+            onViewportMetricsChanged={setViewportMetrics}
           />
         </div>
 
